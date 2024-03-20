@@ -1,0 +1,2 @@
+Printrun==2.0.1
+pyusb==1.2.1
