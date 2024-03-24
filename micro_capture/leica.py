@@ -1,12 +1,13 @@
 # Interacting with Leica microscope
 
 import enum
-import io
+import logging
 import struct
 import time
 
 import usb.core
 
+logger = logging.getLogger(__name__)
 
 class CaptureStatus(enum.IntFlag):
     IMG_READY = 0x04
@@ -49,7 +50,7 @@ class LeicaEZ4HD:
             # read from 0xd000 4 bytes
             resp = self.dev.ctrl_transfer(URB_IN, 0x01, 0xd000, 0x0000, 0x0004)
             flags = CaptureStatusFlags(resp)
-            print(hex(int.from_bytes(resp, "big")),
+            logger.debug(hex(int.from_bytes(resp, "big")),
                   flags.capture_sequence, flags.capture_status)
             if flags.capture_status == capture_status:
                 break
@@ -60,7 +61,7 @@ class LeicaEZ4HD:
             # read from 0xd000 4 bytes
             resp = self.dev.ctrl_transfer(URB_IN, 0x01, 0xd000, 0x0000, 0x0004)
             flags = CaptureStatusFlags(resp)
-            print(hex(int.from_bytes(resp, "big")),
+            logger.debug(hex(int.from_bytes(resp, "big")),
                   flags.capture_sequence, flags.capture_status)
             if flags.capture_sequence == capture_sequence:
                 break
@@ -115,44 +116,37 @@ class LeicaEZ4HD:
         # trigger a switch to capture mode
         self.dev.ctrl_transfer(URB_OUT, 0x01, 0x1f40, 0x0000)
 
-        # print("waiting for camera to configure")
-        # wait_for_capture_sequence(dev, CaptureSequence.IDLE, 10)
-        print("waiting for ready")
+        logger.debug("waiting for ready")
         self._wait_for_capture_sequence(CaptureSequence.READY, 10)
 
         # trigger capture
         self.dev.ctrl_transfer(URB_OUT, 0x01, 0x1f50, 0x0000)
 
-        print("waiting for capture to start")
+        logger.debug("waiting for capture to start")
         self._wait_for_capture_sequence(CaptureSequence.CAPTURING, 50)
-        print("waiting for capture to finish")
+        logger.debug("waiting for capture to finish")
         self._wait_for_capture_sequence(CaptureSequence.CAPTURED, 50)
-        print("waiting for ready")
+        logger.debug("waiting for ready")
         self._wait_for_capture_sequence(CaptureSequence.READY, 50)
 
 
     def _transfer_image(self):
-        print("waiting for image to be ready for transfer")
+        logger.debug("waiting for image to be ready for transfer")
         self._wait_for_capture_status(CaptureStatus.IMG_READY, 50)
 
-        print("reading image metadata")
+        logger.debug("reading image metadata")
         self.dev.ctrl_transfer(URB_OUT, 0x01, 0xae00, 0x0000, struct.pack("<H", 1))
         self.dev.ctrl_transfer(URB_OUT, 0x01, 0xb200, 0x0000, struct.pack("<H", 1))
 
         # read 64 bytes with the image size embedded
         resp = self.dev.ctrl_transfer(URB_IN, 0x01, 0xb900, 0x0000, 64)
         file_name, _, image_size, _ = struct.unpack("<16sIII", resp)
-        print("image size:", image_size)
+        logger.debug("image size:", image_size)
 
         # transmit the image data
         self.dev.ctrl_transfer(URB_OUT, 0x01, 0xae00, 0x0000, struct.pack("<H", 1))
         self.dev.ctrl_transfer(URB_OUT, 0x01, 0xb200, 0x0000, struct.pack("<H", 1))
         self. dev.ctrl_transfer(URB_OUT, 0x01, 0x9300, 0x0000)
-
-        # the final block is stored in the last byte of the image size
-        final_block_size = image_size & 0xff
-
-        print("final block size:", final_block_size)
 
         # track how much we have left to transfer
         data_size = image_size # - final_block_size
@@ -164,14 +158,7 @@ class LeicaEZ4HD:
             image_data.extend(resp)
             data_size -= len(resp)
 
-        # read the final block
-        # resp = dev.read(0x81, final_block_size)
-        # image_data.extend(resp)
-
-        print(len(image_data))
         assert len(image_data) == image_size
-
-
 
         self._wait_for_capture_status(CaptureStatus.NO_IMG, 10)
         self.dev.ctrl_transfer(URB_OUT, 0x01, 0x1f30, 0x0000)
