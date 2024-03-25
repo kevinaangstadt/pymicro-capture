@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 import time
 
@@ -100,12 +101,12 @@ if __name__ == '__main__':
 
     capture = subparsers.add_parser('capture', help='Capture images')
     capture.add_argument('--output-dir', '-o', help='Output directory')
-    capture.add_argument('--x-steps', '-x', type=int, required=True,
-                         help='Number of steps in the x direction')
+    capture.add_argument('--x-distance', '-x', type=int, required=True,
+                         help='Width of the grid in the x direction in mm')
     capture.add_argument('--x-step-size', '-n', type=float,
                          required=True, help='Number of mm to move in the x direction')
-    capture.add_argument('--y-steps', '-y', type=int, required=True,
-                         help='Number of steps in the y direction')
+    capture.add_argument('--y-distance', '-y', type=int, required=True,
+                         help='Height of the grid in the y direction in mm')
     capture.add_argument('--y-step-size', '-m', type=float,
                          required=True, help='Number of mm to move in the y direction')
     
@@ -118,8 +119,10 @@ if __name__ == '__main__':
 
     m = MicroCapture(args.device, args.baudrate)
 
-    if args.command == "capture":        
-        m.capture(args.x_steps, args.x_step_size, args.y_steps, args.y_step_size, args.output_dir)
+    if args.command == "capture":
+        x_steps = math.ceil(args.x_distance / args.x_step_size)
+        y_steps = math.ceil(args.y_distance / args.y_step_size)
+        m.capture(x_steps, args.x_step_size, y_steps, args.y_step_size, args.output_dir)
 
     elif args.command == "expose":
         m.compute_auto_exposure(args.duration)
