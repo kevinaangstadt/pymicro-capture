@@ -2,10 +2,15 @@
 
 import enum
 import logging
+import os
 import struct
 import time
 
+if os.name == 'nt':
+    import libusb_package
+
 import usb.core
+import usb.util
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +43,10 @@ class LeicaEZ4HD:
         idVendor = 0x1711
         idProduct = 0x3001
 
-        self.dev = usb.core.find(idVendor=idVendor, idProduct=idProduct)
+        if os.name == 'nt':
+            self.dev = libusb_package.find(idVendor=idVendor, idProduct=idProduct)
+        else:
+            self.dev = usb.core.find(idVendor=idVendor, idProduct=idProduct)
         if self.dev is None:
             raise ValueError("Device not found")
 
@@ -50,7 +58,7 @@ class LeicaEZ4HD:
             # read from 0xd000 4 bytes
             resp = self.dev.ctrl_transfer(URB_IN, 0x01, 0xd000, 0x0000, 0x0004)
             flags = CaptureStatusFlags(resp)
-            logger.debug(hex(int.from_bytes(resp, "big")),
+            logger.debug("%s: %s %s", hex(int.from_bytes(resp, "big")),
                   flags.capture_sequence, flags.capture_status)
             if flags.capture_status == capture_status:
                 break
@@ -61,7 +69,7 @@ class LeicaEZ4HD:
             # read from 0xd000 4 bytes
             resp = self.dev.ctrl_transfer(URB_IN, 0x01, 0xd000, 0x0000, 0x0004)
             flags = CaptureStatusFlags(resp)
-            logger.debug(hex(int.from_bytes(resp, "big")),
+            logger.debug("%s: %s %s", hex(int.from_bytes(resp, "big")),
                   flags.capture_sequence, flags.capture_status)
             if flags.capture_sequence == capture_sequence:
                 break
@@ -141,7 +149,7 @@ class LeicaEZ4HD:
         # read 64 bytes with the image size embedded
         resp = self.dev.ctrl_transfer(URB_IN, 0x01, 0xb900, 0x0000, 64)
         file_name, _, image_size, _ = struct.unpack("<16sIII", resp)
-        logger.debug("image size:", image_size)
+        logger.debug("image size: %d", image_size)
 
         # transmit the image data
         self.dev.ctrl_transfer(URB_OUT, 0x01, 0xae00, 0x0000, struct.pack("<H", 1))
@@ -152,13 +160,26 @@ class LeicaEZ4HD:
         data_size = image_size # - final_block_size
         image_data = bytearray()
 
+        max_read_size = 102400
+        buf = usb.util.create_buffer(max_read_size)
         while data_size > 0:
-            read_length = 102400
-            resp = self.dev.read(0x81, read_length)
-            image_data.extend(resp)
-            data_size -= len(resp)
+            try:
+                read_length = self.dev.read(0x81, buf)
+            except usb.core.USBTimeoutError:
+                logger.debug("File transfer timed out")
+                # check if the last two bytes conclude the image data
+                if image_data[-2] == 0xff and image_data[-1] == 0xd9:
+                    logger.debug("found end of image")
+                else:
+                    logger.warning("Data transfer timed out, but did not find end of image. File may be incomplete.")
+                # escape data capute
+                break
 
-        assert len(image_data) == image_size
+            image_data.extend(buf[:read_length])
+            data_size -= read_length
+            logger.debug("%d bytes read; %d bytes left to read", read_length, data_size)
+
+        # assert len(image_data) == image_size
 
         self._wait_for_capture_status(CaptureStatus.NO_IMG, 10)
         self.dev.ctrl_transfer(URB_OUT, 0x01, 0x1f30, 0x0000)
