@@ -2,6 +2,9 @@
 Capture a grid of images using a Marlin Microscope Stage and Leica Microscope
 
 # Setup
+MacOS and Linux systems will need `libusb` installed to function correctly. Mac
+systems can install this using `brew`, and this is a commonly supported package
+on most Linux distributions.
 
 ## Virtual Environment
 Create a virtual environment and activate it.
@@ -13,9 +16,9 @@ source .venv/bin/activate
 ```
 
 In Windows with powershell:
-```ps
+```powershell
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+.venv\Scripts\Activate.ps1
 ```
 
 ## Install Dependencies
