@@ -3,6 +3,8 @@ import math
 import os
 import time
 
+logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
+
 from printrun.printcore import printcore
 
 from leica import LeicaEZ4HD
@@ -85,8 +87,6 @@ class MicroCapture:
 
 if __name__ == '__main__':
     import argparse
-
-    logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
     parser = argparse.ArgumentParser(
         description='Capture a grid of images from a microscope')
