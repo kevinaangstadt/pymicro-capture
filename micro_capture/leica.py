@@ -181,9 +181,9 @@ class LeicaEZ4HD:
 
         # assert len(image_data) == image_size
 
-        self._wait_for_capture_status(CaptureStatus.NO_IMG, 10)
+        self._wait_for_capture_status(CaptureStatus.NO_IMG, 50)
         self.dev.ctrl_transfer(URB_OUT, 0x01, 0x1f30, 0x0000)
-        self._wait_for_capture_sequence(CaptureSequence.IDLE, 10)
+        self._wait_for_capture_sequence(CaptureSequence.IDLE, 50)
         self.dev.ctrl_transfer(URB_OUT, 0x01, 0xf001, 0x0000)
 
         # dev.clear_halt(0x01)
