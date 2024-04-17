@@ -43,7 +43,7 @@ class MicroCapture:
         self.microscope.compute_auto_exposure(duration)
         logger.info("Auto exposure computed")
 
-    def capture(self, x_steps, x_step_size, y_steps, y_step_size, output_dir, feedrate=300):
+    def capture(self, x_steps, x_step_size, y_steps, y_step_size, output_dir, exposure, feedrate=300):
         if not self.stage.printer:
             self.connect()
 
@@ -59,7 +59,7 @@ class MicroCapture:
                 col = x if y % 2 == 0 else x_steps - x - 1
                 filename = os.path.join(
                     output_dir, f"img_r{y:03}_c{col:03}.jpg")
-                self.microscope.capture_image(filename)
+                self.microscope.capture_image(filename, exposure)
 
                 logger.info(f"Captured image at row {y} column {col}")
 
@@ -100,6 +100,7 @@ if __name__ == '__main__':
     subparsers = parser.add_subparsers(dest="command", help="sub-command help")
 
     capture = subparsers.add_parser('capture', help='Capture images')
+    capture.add_argument('--exposure', '-e', type=int, default=2000, help='Exposure time in ms')
     capture.add_argument('--output-dir', '-o', help='Output directory')
     capture.add_argument('--x-distance', '-x', type=int, required=True,
                          help='Width of the grid in the x direction in mm')
@@ -122,7 +123,7 @@ if __name__ == '__main__':
     if args.command == "capture":
         x_steps = math.ceil(args.x_distance / args.x_step_size)
         y_steps = math.ceil(args.y_distance / args.y_step_size)
-        m.capture(x_steps, args.x_step_size, y_steps, args.y_step_size, args.output_dir)
+        m.capture(x_steps, args.x_step_size, y_steps, args.y_step_size, args.output_dir, args.exposure)
 
     elif args.command == "expose":
         m.compute_auto_exposure(args.duration)
